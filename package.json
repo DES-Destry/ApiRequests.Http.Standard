@@ -1,6 +1,6 @@
 {
   "name": "api-requests.http.standard",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "repository": "git@github.com:DES-Destry/ApiRequests.Http.Standard.git",
   "author": "Andrey Kirik <dev.andrey.kirik@gmail.com>",
   "license": "MIT",
