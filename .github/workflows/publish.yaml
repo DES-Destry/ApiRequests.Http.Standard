@@ -1,0 +1,71 @@
+name: Publish ApiRequests.Http.Standard
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    name: Build and publish NuGet package
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+      issues: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 18
+
+      - name: Install Semantic-Release Deps
+        id: deps
+        run: yarn install
+
+      - name: Write current version to env (RELEASE_VERSION)
+        id: semantic-release
+        run: npm run release:production
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build class library and pack NuGet package
+        id: build
+        run: |
+          dotnet build -p:Version=${RELEASE_VERSION} --configuration Release
+          dotnet pack -p:Version=${RELEASE_VERSION} --configuration Release --no-build --output .
+
+      - name: Publish NuGet package
+        id: publish
+        run: dotnet nuget push ApiRequests.Http.Standard.${RELEASE_VERSION}.nupkg --api-key ${NUGET_TOKEN} --source https://api.nuget.org/v3/index.json
+        env:
+          NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
+
+      - name: Send success telegram message
+        if: always() && steps.publish.outcome == 'success'
+        uses: WildEgor/tg-notification-action@v1.1.0
+        with:
+          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_TO }}
+          MESSAGE: |
+            Action: ✅ Build package success (ApiRequests.Http.Standard)
+            NuGet Package version: ${{ env.RELEASE_VERSION }}
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref }}
+            See: [Link](${{ github.event.repository.html_url }}/commit/${{ github.sha }})
+
+      - name: Send failed telegram message
+        if: always() && (steps.deps.outcome == 'failure' || steps.semantic-release.outcome == 'failure' || steps.build.outcome == 'failure' || steps.publish.outcome == 'failure')
+        uses: WildEgor/tg-notification-action@v1.1.0
+        with:
+          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_TO }}
+          MESSAGE: |
+            Action: ❌ Build package failure (ApiRequests.Http.Standard)
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref }}
+            See: [Link](${{ github.event.workflow.url }})
